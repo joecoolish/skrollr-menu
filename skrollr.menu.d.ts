@@ -1,4 +1,4 @@
-﻿declare namespace __Skrollr {
+declare namespace __Skrollr {
     interface SkrollrStatic {
         menu: SkrollrMenuStatic;
     }
@@ -8,7 +8,7 @@
         click: (link) => void;
     }
 }
-declare module "skrollr-menu" {
+declare module "skrollr-menu-typed" {
     const menu: __Skrollr.SkrollrStatic;
     export = menu;
 }
