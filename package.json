@@ -23,6 +23,7 @@
     }
   ],
   "main": "dist/skrollr.menu.min.js",
+  "types": "index.d.ts",
   "engines": {
     "node": ">=0.8"
   },
