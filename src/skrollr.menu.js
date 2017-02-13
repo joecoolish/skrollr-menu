@@ -10,10 +10,10 @@
 (function (root, factory) {
     if (typeof define === 'function' && define.amd) {
         // AMD
-        define(['skrollr'], factory);
+        define(['skrollr-typed'], factory);
     } else if (typeof exports === 'object') {
         // Node, CommonJS-like
-        module.exports = factory(require('skrollr'));
+        module.exports = factory(require('skrollr-typed'));
     } else {
         // Browser globals (root is window)
         root.returnExports = factory(root.skrollr);
