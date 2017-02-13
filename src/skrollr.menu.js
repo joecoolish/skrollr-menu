@@ -6,264 +6,277 @@
 *
 * Free to use under terms of MIT license
 */
-(function (document, window) {
-    'use strict';
 
-    var DEFAULT_DURATION = 500;
-    var DEFAULT_EASING = 'sqrt';
-    var DEFAULT_SCALE = 1;
+(function (root, factory) {
+    if (typeof define === 'function' && define.amd) {
+        // AMD
+        define(['skrollr'], factory);
+    } else if (typeof exports === 'object') {
+        // Node, CommonJS-like
+        module.exports = factory(require('skrollr'));
+    } else {
+        // Browser globals (root is window)
+        root.returnExports = factory(root.skrollr);
+    }
+}(window, function (skrollr) {
+	(function (document, window) {
+		'use strict';
 
-    var MENU_TOP_ATTR = 'data-menu-top';
-    var MENU_OFFSET_ATTR = 'data-menu-offset';
-    var MENU_OFFSETPOS_ATTR = 'data-menu-offset-position';
-    var MENU_DURATION_ATTR = 'data-menu-duration';
-    var MENU_IGNORE_ATTR = 'data-menu-ignore';
+		var DEFAULT_DURATION = 500;
+		var DEFAULT_EASING = 'sqrt';
+		var DEFAULT_SCALE = 1;
 
-    var skrollr = window.skrollr;
-    var history = window.history;
-    var supportsHistory = !!history.pushState;
+		var MENU_TOP_ATTR = 'data-menu-top';
+		var MENU_OFFSET_ATTR = 'data-menu-offset';
+		var MENU_OFFSETPOS_ATTR = 'data-menu-offset-position';
+		var MENU_DURATION_ATTR = 'data-menu-duration';
+		var MENU_IGNORE_ATTR = 'data-menu-ignore';
 
-    /*
-		Since we are using event bubbling, the element that has been clicked
-		might not acutally be the link but a child.
-	*/
-    var findParentLink = function (element) {
-        //We reached the top, no link found.
-        if (element === document || !element) {
-            return false;
-        }
+		var history = window.history;
+		var supportsHistory = !!history.pushState;
 
-        //Yay, it's a link!
-        if (element.tagName.toUpperCase() === 'A') {
-            return element;
-        }
+		/*
+			Since we are using event bubbling, the element that has been clicked
+			might not acutally be the link but a child.
+		*/
+		var findParentLink = function (element) {
+			//We reached the top, no link found.
+			if (element === document || !element) {
+				return false;
+			}
 
-        //Maybe the parent is a link.
-        return findParentLink(element.parentNode);
-    };
+			//Yay, it's a link!
+			if (element.tagName.toUpperCase() === 'A') {
+				return element;
+			}
 
-    /*
-		Handle the click event on the document.
-	*/
-    var handleClick = function (e) {
-        //Only handle left click.
-        if (e.which !== 1 && e.button !== 0) {
-            return;
-        }
+			//Maybe the parent is a link.
+			return findParentLink(element.parentNode);
+		};
 
-        var link = findParentLink(e.target);
+		/*
+			Handle the click event on the document.
+		*/
+		var handleClick = function (e) {
+			//Only handle left click.
+			if (e.which !== 1 && e.button !== 0) {
+				return;
+			}
 
-        //The click did not happen inside a link.
-        if (!link) {
-            return;
-        }
+			var link = findParentLink(e.target);
 
-        if (handleLink(link)) {
-            e.preventDefault();
-        }
-    };
+			//The click did not happen inside a link.
+			if (!link) {
+				return;
+			}
 
-    /*
-		Handles the click on a link. May be called without an actual click event.
-		When the fake flag is set, the link won't change the url and the position won't be animated.
-	*/
-    var handleLink = function (link, fake) {
-        var hash;
+			if (handleLink(link)) {
+				e.preventDefault();
+			}
+		};
 
-        //When complexLinks is enabled, we also accept links which do not just contain a simple hash.
-        if (_complexLinks) {
-            //The link points to something completely different.
-            if (link.hostname !== window.location.hostname) {
-                return false;
-            }
+		/*
+			Handles the click on a link. May be called without an actual click event.
+			When the fake flag is set, the link won't change the url and the position won't be animated.
+		*/
+		var handleLink = function (link, fake) {
+			var hash;
 
-            //The link does not link to the same page/path.
-            if (link.pathname !== document.location.pathname) {
-                return false;
-            }
+			//When complexLinks is enabled, we also accept links which do not just contain a simple hash.
+			if (_complexLinks) {
+				//The link points to something completely different.
+				if (link.hostname !== window.location.hostname) {
+					return false;
+				}
 
-            hash = link.hash;
-        } else {
-            //Don't use the href property (link.href) because it contains the absolute url.
-            hash = link.getAttribute('href');
-        }
+				//The link does not link to the same page/path.
+				if (link.pathname !== document.location.pathname) {
+					return false;
+				}
 
-        //Not a hash link.
-        if (!/^#/.test(hash)) {
-            return false;
-        }
+				hash = link.hash;
+			} else {
+				//Don't use the href property (link.href) because it contains the absolute url.
+				hash = link.getAttribute('href');
+			}
 
-        //The link has the ignore attribute.
-        if (!fake && link.getAttribute(MENU_IGNORE_ATTR) !== null) {
-            return false;
-        }
+			//Not a hash link.
+			if (!/^#/.test(hash)) {
+				return false;
+			}
 
-        //Now get the targetTop to scroll to.
-        var targetTop;
+			//The link has the ignore attribute.
+			if (!fake && link.getAttribute(MENU_IGNORE_ATTR) !== null) {
+				return false;
+			}
 
-        var menuTop;
+			//Now get the targetTop to scroll to.
+			var targetTop;
 
-        //If there's a handleLink function, it overrides the actual anchor offset.
-        if (_handleLink) {
-            menuTop = _handleLink(link);
-        }
-            //If there's a data-menu-top attribute and no handleLink function, it overrides the actual anchor offset.
-        else {
-            menuTop = link.getAttribute(MENU_TOP_ATTR);
-        }
+			var menuTop;
 
-        if (menuTop !== null) {
-            //Is it a percentage offset?
-            if (/p$/.test(menuTop)) {
-                targetTop = (menuTop.slice(0, -1) / 100) * document.documentElement.clientHeight;
-            } else {
-                targetTop = +menuTop * _scale;
-            }
-        } else {
-            var scrollTarget = document.getElementById(hash.substr(1));
+			//If there's a handleLink function, it overrides the actual anchor offset.
+			if (_handleLink) {
+				menuTop = _handleLink(link);
+			}
+				//If there's a data-menu-top attribute and no handleLink function, it overrides the actual anchor offset.
+			else {
+				menuTop = link.getAttribute(MENU_TOP_ATTR);
+			}
 
-            //Ignore the click if no target is found.
-            if (!scrollTarget) {
-                return false;
-            }
+			if (menuTop !== null) {
+				//Is it a percentage offset?
+				if (/p$/.test(menuTop)) {
+					targetTop = (menuTop.slice(0, -1) / 100) * document.documentElement.clientHeight;
+				} else {
+					targetTop = +menuTop * _scale;
+				}
+			} else {
+				var scrollTarget = document.getElementById(hash.substr(1));
 
-            var offsetPosStr = link.getAttribute(MENU_OFFSETPOS_ATTR) || scrollTarget.getAttribute(MENU_OFFSETPOS_ATTR) || 'top top';
-            var offsetPos = offsetPosStr.split(' ');
+				//Ignore the click if no target is found.
+				if (!scrollTarget) {
+					return false;
+				}
 
-            if (offsetPos.length < 2)
-                offsetPos = 'top top'.split(' ');
+				var offsetPosStr = link.getAttribute(MENU_OFFSETPOS_ATTR) || scrollTarget.getAttribute(MENU_OFFSETPOS_ATTR) || 'top top';
+				var offsetPos = offsetPosStr.split(' ');
 
-            for (var i = 0; i < offsetPos; i++)
-                if (offsetPos[i] !== 'top' && offsetPos[i] !== 'bottom' && offsetPos[i] !== 'center')
-                    offsetPos[i] = 'top'
+				if (offsetPos.length < 2)
+					offsetPos = 'top top'.split(' ');
 
-            targetTop = _skrollrInstance.relativeToAbsolute(scrollTarget, offsetPos[0], offsetPos[1]);
+				for (var i = 0; i < offsetPos; i++)
+					if (offsetPos[i] !== 'top' && offsetPos[i] !== 'bottom' && offsetPos[i] !== 'center')
+						offsetPos[i] = 'top'
 
-            var menuOffset = link.getAttribute(MENU_OFFSET_ATTR);
+				targetTop = _skrollrInstance.relativeToAbsolute(scrollTarget, offsetPos[0], offsetPos[1]);
 
-            if (menuOffset !== null) {
-                targetTop += +menuOffset;
-            }
-            else if ((menuOffset = scrollTarget.getAttribute(MENU_OFFSET_ATTR)) !== null) {
-                targetTop += +menuOffset;
-            }
-        }
+				var menuOffset = link.getAttribute(MENU_OFFSET_ATTR);
 
-        if (supportsHistory && _updateUrl && !fake) {
-            history.pushState({ top: targetTop }, '', hash);
-        }
+				if (menuOffset !== null) {
+					targetTop += +menuOffset;
+				}
+				else if ((menuOffset = scrollTarget.getAttribute(MENU_OFFSET_ATTR)) !== null) {
+					targetTop += +menuOffset;
+				}
+			}
 
-        var menuDuration = parseInt(link.getAttribute(MENU_DURATION_ATTR), 10);
-        var animationDuration = _duration(_skrollrInstance.getScrollTop(), targetTop);
+			if (supportsHistory && _updateUrl && !fake) {
+				history.pushState({ top: targetTop }, '', hash);
+			}
 
-        if (!isNaN(menuDuration)) {
-            animationDuration = menuDuration;
-        }
+			var menuDuration = parseInt(link.getAttribute(MENU_DURATION_ATTR), 10);
+			var animationDuration = _duration(_skrollrInstance.getScrollTop(), targetTop);
 
-        //Trigger the change if event if there's a listener.
-        if (_change) {
-            _change(hash, targetTop);
-        }
+			if (!isNaN(menuDuration)) {
+				animationDuration = menuDuration;
+			}
 
-        //Now finally scroll there.
-        if (_animate && !fake) {
-            _skrollrInstance.animateTo(targetTop, {
-                duration: animationDuration,
-                easing: _easing
-            });
-        } else {
-            defer(function () {
-                _skrollrInstance.setScrollTop(targetTop);
-            });
-        }
+			//Trigger the change if event if there's a listener.
+			if (_change) {
+				_change(hash, targetTop);
+			}
 
-        return true;
-    };
+			//Now finally scroll there.
+			if (_animate && !fake) {
+				_skrollrInstance.animateTo(targetTop, {
+					duration: animationDuration,
+					easing: _easing
+				});
+			} else {
+				defer(function () {
+					_skrollrInstance.setScrollTop(targetTop);
+				});
+			}
 
-    var jumpStraightToHash = function () {
-        if (window.location.hash && document.querySelector) {
-            var link = document.querySelector('a[href="' + window.location.hash + '"]');
+			return true;
+		};
 
-            if (!link) {
-                // No link found on page, so we create one and then activate it
-                link = document.createElement('a');
-                link.href = window.location.hash;
-            }
+		var jumpStraightToHash = function () {
+			if (window.location.hash && document.querySelector) {
+				var link = document.querySelector('a[href="' + window.location.hash + '"]');
 
-            handleLink(link, true);
-        }
-    };
+				if (!link) {
+					// No link found on page, so we create one and then activate it
+					link = document.createElement('a');
+					link.href = window.location.hash;
+				}
 
-    var defer = function (fn) {
-        window.setTimeout(fn, 1);
-    };
+				handleLink(link, true);
+			}
+		};
 
-    /*
-		Global menu function accessible through window.skrollr.menu.init.
-	*/
-    skrollr.menu = {};
-    skrollr.menu.init = function (skrollrInstance, options) {
-        _skrollrInstance = skrollrInstance;
+		var defer = function (fn) {
+			window.setTimeout(fn, 1);
+		};
 
-        options = options || {};
+		/*
+			Global menu function accessible through window.skrollr.menu.init.
+		*/
+		skrollr.menu = {};
+		skrollr.menu.init = function (skrollrInstance, options) {
+			_skrollrInstance = skrollrInstance;
 
-        _easing = options.easing || DEFAULT_EASING;
-        _animate = options.animate !== false;
-        _duration = options.duration || DEFAULT_DURATION;
-        _handleLink = options.handleLink;
-        _scale = options.scale || DEFAULT_SCALE;
-        _complexLinks = options.complexLinks === true;
-        _change = options.change;
-        _updateUrl = options.updateUrl !== false;
+			options = options || {};
 
-        if (typeof _duration === 'number') {
-            _duration = (function (duration) {
-                return function () {
-                    return duration;
-                };
-            }(_duration));
-        }
+			_easing = options.easing || DEFAULT_EASING;
+			_animate = options.animate !== false;
+			_duration = options.duration || DEFAULT_DURATION;
+			_handleLink = options.handleLink;
+			_scale = options.scale || DEFAULT_SCALE;
+			_complexLinks = options.complexLinks === true;
+			_change = options.change;
+			_updateUrl = options.updateUrl !== false;
 
-        //Use event bubbling and attach a single listener to the document.
-        skrollr.addEvent(document, 'click', handleClick);
+			if (typeof _duration === 'number') {
+				_duration = (function (duration) {
+					return function () {
+						return duration;
+					};
+				}(_duration));
+			}
 
-        if (supportsHistory) {
-            skrollr.addEvent(window, 'popstate', function (e) {
-                var state = e.state || {};
-                var top = state.top || 0;
+			//Use event bubbling and attach a single listener to the document.
+			skrollr.addEvent(document, 'click', handleClick);
 
-                defer(function () {
-                    _skrollrInstance.setScrollTop(top);
-                });
-            }, false);
-        }
+			if (supportsHistory) {
+				skrollr.addEvent(window, 'popstate', function (e) {
+					var state = e.state || {};
+					var top = state.top || 0;
 
-        jumpStraightToHash();
-    };
+					defer(function () {
+						_skrollrInstance.setScrollTop(top);
+					});
+				}, false);
+			}
 
-    //Expose the handleLink function to be able to programmatically trigger clicks.
-    skrollr.menu.click = function (link) {
-        //We're not assigning it directly to `click` because of the second ("private") parameter.
-        handleLink(link);
-    };
+			jumpStraightToHash();
+		};
 
-    //Private reference to the initialized skrollr.
-    var _skrollrInstance;
+		//Expose the handleLink function to be able to programmatically trigger clicks.
+		skrollr.menu.click = function (link) {
+			//We're not assigning it directly to `click` because of the second ("private") parameter.
+			handleLink(link);
+		};
 
-    var _easing;
-    var _duration;
-    var _animate;
-    var _handleLink;
-    var _scale;
-    var _complexLinks;
-    var _change;
-    var _updateUrl;
+		//Private reference to the initialized skrollr.
+		var _skrollrInstance;
 
-    //In case the page was opened with a hash, prevent jumping to it.
-    //http://stackoverflow.com/questions/3659072/jquery-disable-anchor-jump-when-loading-a-page
-    defer(function () {
-        if (window.location.hash) {
-            window.scrollTo(0, 0);
-        }
-    });
-}(document, window));
+		var _easing;
+		var _duration;
+		var _animate;
+		var _handleLink;
+		var _scale;
+		var _complexLinks;
+		var _change;
+		var _updateUrl;
+
+		//In case the page was opened with a hash, prevent jumping to it.
+		//http://stackoverflow.com/questions/3659072/jquery-disable-anchor-jump-when-loading-a-page
+		defer(function () {
+			if (window.location.hash) {
+				window.scrollTo(0, 0);
+			}
+		});
+	}(document, window));
+}));
